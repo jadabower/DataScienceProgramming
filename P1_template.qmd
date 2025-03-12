@@ -1,0 +1,227 @@
+---
+title: "Client Report - What's in a Name?"
+subtitle: "Course DS 250"
+author: "Jada Bower"
+format:
+  html:
+    self-contained: true
+    page-layout: full
+    title-block-banner: true
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    number-sections: false
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Show the code"
+    code-overflow: wrap
+    code-copy: hover
+    code-tools:
+        source: false
+        toggle: true
+        caption: See code
+execute: 
+  warning: false
+    
+---
+
+```{python}
+import pandas as pd
+import numpy as np
+from lets_plot import *
+
+LetsPlot.setup_html(isolated_frame=True)
+```
+
+
+## Project Notes
+
+__For Project 1 the answer to each question should include a chart **and** a written response. The years labels on your charts should not include a comma. At least **two** of your charts must include reference marks.__
+
+```{python}
+# Learn morea about Code Cells: https://quarto.org/docs/reference/cells/cells-jupyter.html
+
+# Include and execute your code here
+df = pd.read_csv("https://github.com/byuidatascience/data4names/raw/master/data-raw/names_year/names_year.csv")
+```
+
+## QUESTION|TASK 1
+
+__How does your name at your birth year compare to its use historically?__
+
+The name "Jada" was not very common historically until around the year 1992. Then my name skyrocketed in popularity. I was born in 2004, and in 2004 there were slightly fewer Jada's born than in the year before or after. 2005 was the maximum and my name has dropped in popularity steadily since then.
+
+```{python}
+Jada_df = df[df["name"] == "Jada"]
+ninety_two = Jada_df.query("year == 1992")
+breaks_range = list(range(Jada_df['year'].min(), Jada_df['year'].max() + 1))
+(
+  ggplot(Jada_df, aes(x="year", y="Total"))
+  + geom_line()
+  + geom_vline(xintercept=2004, color='red', size=1, linetype='longdash')
+  + geom_label(label="3868.5 Jada's born in 2004", x=2006, y=2225, color="red", angle=90)
+  + geom_point(
+      data=ninety_two,
+      color="blue",
+  )
+  + geom_label(
+      label="1992",
+      data=ninety_two,
+      color="blue",
+      x=1987,
+      y=300,
+      fontface="bold",
+      size=5,
+      hjust="left",
+      vjust="bottom",
+  )
+  + labs(
+    title="Children Named 'Jada' Per Year",
+    x="Year",
+    y="Children Named 'Jada'"
+  )
+  + theme(plot_title=element_text(hjust=.75, size=20))
+  + scale_x_continuous(breaks=breaks_range, format='{}')
+)
+```
+
+
+## QUESTION|TASK 2
+
+__If you talked to someone named Brittany on the phone, what is your guess of his or her age? What ages would you not guess?__
+
+If I talked to someone named "Brittany", I would guess he/she was born in 1990, so they would be about 35 years old now. I would not guess that they were born before 1984 (so no older than 41), and I would not guess that they were born after 1999 (so no younger than 26)
+
+```{python}
+# Include and execute your code here
+Brittany_df = df[df["name"] == "Brittany"]
+breaks_range = list(range(Brittany_df['year'].min(), Brittany_df['year'].max() + 1))
+lower_cutoff = Brittany_df.quantile(0.35, method="table", interpolation="nearest")
+upper_cutoff = Brittany_df.quantile(0.65, method="table", interpolation="nearest")
+
+(
+  ggplot(Brittany_df, aes(x="year", y="Total"))
+  + geom_line()
+  + geom_vline(xintercept=1990, color='red', size=1, linetype='longdash')
+  + geom_label(label="Peak at 32562.5 in 1990", x=1992, y=
+  15000, color="red", angle=90)
+  + labs(
+    title="Children Named 'Brittany' Per Year",
+    x="Year",
+    y="Children Named 'Brittany'"
+  )
+  + theme(plot_title=element_text(hjust=.75, size=20))
+  + scale_x_continuous(breaks=breaks_range, format='{}')
+  + geom_rect(xmin=lower_cutoff.year, xmax=upper_cutoff.year, ymin=0, ymax=35000, fill="blue", alpha=0.1, linetype=0)
+)
+```
+
+
+## QUESTION|TASK 3
+
+__Mary, Martha, Peter, and Paul are all Christian names. From 1920 - 2000, compare the name usage of each of the four names in a single chart. What trends do you notice?__
+
+"Mary" is by far the most popular of the Christian names listed, and "Paul" is more popular than "Peter", with "Martha" as the least popular. All four names reached a peak in the early 50's, and then dropped in popularity during the 60's onward. Now all four names are about as common as each other.
+
+```{python}
+# Include and execute your code here
+Bible_df = df[df["name"].isin(["Mary", "Martha", "Peter", "Paul"])]
+breaks_range = list(range(1920,2002, 2))
+
+(
+  ggplot(Bible_df, aes(x="year", y="Total", color="name"))
+  + geom_line()
+  + labs(
+    title="Children With Christian Names Per Year",
+    x="Year",
+    y="# of Children",
+    color="Name"
+  )
+  + theme(plot_title=element_text(hjust=.5, size=20))
+  + scale_x_continuous(breaks=breaks_range, format='{}', limits=[1920, 2000])
+)
+```
+
+
+
+## QUESTION|TASK 4
+
+__Think of a unique name from a famous movie. Plot the usage of that name and see how changes line up with the movie release. Does it look like the movie had an effect on usage?__  
+
+"Luke" isn't exactly a unique name, but it is the name of the main character from one of the most famous movie franchises of all time. I decided to plot the popularity of the name "Luke" along with the release dates of the various Star Wars movies. I think Star Wars definitely had an effect on the usage of the name "Luke". Before it was released it was not extremely popular, as it was just like any other Bible name. But with almost every new Star Wars movie it's popularity jumped significantly. 
+
+```{python}
+# Include and execute your code here
+Luke_df = df[df["name"] == "Luke"]
+breaks_range = list(range(Luke_df['year'].min(), Luke_df['year'].max() + 1, 2))
+(
+  ggplot(Luke_df, aes(x="year", y="Total"))
+  + geom_line()
+  + labs(
+    title="Popularity of the name 'Luke'",
+    subtitle="With release dates of the Star Wars Movies",
+    x="Year",
+    y="# of Children"
+  )
+
+  + geom_vline(xintercept=1977, color='blue', size=.5, linetype='longdash')
+  + geom_label(label="A New Hope", x=1977, y=5000, color="blue", size=4, angle=90)
+  + geom_vline(xintercept=1980, color='blue', size=.5, linetype='longdash')
+  + geom_label(label="Empire Strikes Back", x=1980, y=6500, color="blue", size=4, angle=90)
+  + geom_vline(xintercept=1983, color='blue', size=.5, linetype='longdash')
+  + geom_label(label="Return of the Jedi", x=1983, y=7000, color="blue", size=4, angle=90)
+
+  + geom_vline(xintercept=1999, color='red', size=.5, linetype='longdash')
+  + geom_label(label="Phantom Menace", x=1999, y=2000, color="red", size=4, angle=90)
+  + geom_vline(xintercept=2002, color='red', size=.5, linetype='longdash')
+  + geom_label(label="Attack of the Clones", x=2002, y=2500, color="red", size=4, angle=90)
+  + geom_vline(xintercept=2005, color='red', size=.5, linetype='longdash')
+  + geom_label(label="Revenge of the Sith", x=2005, y=3000, color="red", size=4, angle=90)
+
+  + geom_vline(xintercept=2015, color='orange', size=.5, linetype='longdash')
+  + geom_label(label="The Force Awakens", x=2015, y=4000, color="orange", size=4, angle=90)
+
+  + theme(plot_title=element_text(size=20))
+  + scale_x_continuous(breaks=breaks_range, format='{}')
+)
+```
+
+---
+
+## STRETCH QUESTION|TASK 1
+
+__Reproduce the chart Elliot using the data from the `names_year.csv` file.__ 
+
+It is kind of hard to tell if the releases of E.T. actually affected whether people named their children "Elliot". Obviously in the first release it did, as the chart shot up the year it was released. But it didn't seem to affect the popularity of the name nearly as much the second or third release. In 1993, when it was released for the second time, it kept the name going out of popularity as it had trended to in the few years previous, but the popularity didn't get much (or at all) higher than it was the year before. And in 2002 it seems the name was growing in popularity anyways, so it's hard to know if the third release of E.T. actually affected this at all.
+
+```{python}
+# Include and execute your code here
+Elliot_df = df[df["name"] == "Elliot"]
+breaks_range = list(range(1950,2030, 10))
+(
+  ggplot(Elliot_df, aes(x="year", y="Total", color="name"))
+  + geom_line()
+  + geom_vline(xintercept=1982, color='red', size=1, linetype='dashed')
+  + geom_text(label="E.T Released", x=1975, y=1250, size=6, color="black")
+  + geom_vline(xintercept=1985, color='red', size=1, linetype='dashed')
+  + geom_text(label="Second Release", x=1993, y=1250, size=6, color="black")
+  + geom_vline(xintercept=2002, color='red', size=1, linetype='dashed')
+  + geom_text(label="Third Release", x=2009, y=1250, size=6, color="black")
+  + labs(
+    title="Elliot... What?",
+  )
+  + theme(
+    plot_title=element_text(size=20, hjust=-0.07),
+    axis_line=element_blank(),
+    axis_ticks=element_blank(),
+    legend_justification=[1, 1],
+    legend_key=element_rect(fill='white', size=0),
+    panel_background=element_rect(color="black", fill="#e5ecf6", size=0),
+    panel_grid=element_line(color="white", size=1)
+  )
+  + scale_x_continuous(breaks=breaks_range, format='{}', limits=[1950, 2025], expand=[0])
+  + scale_color_manual(values=["#6e78fa"], name="name")
+)
+```
+
+---

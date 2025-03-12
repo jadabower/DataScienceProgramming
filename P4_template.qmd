@@ -1,0 +1,550 @@
+---
+title: "Client Report - Can You Predict That?"
+subtitle: "Course DS 250"
+author: "Jada Bower"
+format:
+  html:
+    self-contained: true
+    page-layout: full
+    title-block-banner: true
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    number-sections: false
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Show the code"
+    code-overflow: wrap
+    code-copy: hover
+    code-tools:
+        source: false
+        toggle: true
+        caption: See code
+execute: 
+  warning: false
+    
+---
+
+```{python}
+!pip install tensorflow
+import pandas as pd 
+import numpy as np
+from lets_plot import *
+import matplotlib.pyplot as plt
+import xgboost as xgb
+from xgboost import XGBClassifier, XGBRegressor
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import matplotlib.pyplot as plt
+from sklearn.metrics import classification_report
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Dropout, Flatten, Dense
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import root_mean_squared_error, r2_score
+from sklearn.preprocessing import MinMaxScaler
+
+LetsPlot.setup_html(isolated_frame=True)
+```
+
+
+## Elevator pitch
+_A SHORT (2-3 SENTENCES) PARAGRAPH THAT `DESCRIBES KEY INSIGHTS` TAKEN FROM METRICS IN THE PROJECT RESULTS THINK TOP OR MOST IMPORTANT RESULTS._ (Note: this is not a summary of the project, but a summary of the results.)
+
+I was able to create a machine learning model that used features like if the home is one story and the quality of the building materials to decide whether the home was built before or after 1980 with an F1 score of about 0.94. When I added the additional features from the expanded dataset I got that F1 score up to about 0.97, so it did a lot better. 
+
+## QUESTION|TASK 1
+
+__Create 2-3 charts that evaluate potential relationships between the home variables and `before1980`.__ Explain what you learn from the charts that could help a machine learning algorithm. 
+
+First, the vast majority of one-story homes were built since 1980. I did some research into why most one-story homes are of newer construction, and it seems to be because in the 1980's and later is when the Baby Boomer generation started to need more accessible homes, and they didn't need to be very large (as they were living mostly on their own or just as couples), so a lot more single-story homes were built to accommodate them, as their generation is massive proportionally. 
+
+```{python}
+df = pd.read_csv("https://raw.githubusercontent.com/byuidatascience/data4dwellings/master/data-raw/dwellings_ml/dwellings_ml.csv")
+```
+
+```{python}
+df_plotting = df.copy()
+df_plotting['arcstyle_ONE-STORY'] = df_plotting['arcstyle_ONE-STORY'].astype('bool')
+df_plotting['before1980'] = df_plotting['before1980'].astype('bool')
+
+legend_labels = {
+    'true': 'Before 1980',
+    'false': 'Since 1980'
+  }
+
+(
+  ggplot(df_plotting, aes(x="arcstyle_ONE-STORY",fill='before1980'))
+  + geom_bar(stat='count', position='dodge')
+  + scale_fill_manual(
+      values = ['#e6272f', '#6d9ade'],
+      name = "House Built:",
+      labels = legend_labels
+    )
+  + labs(
+      title="One Story Homes Before and After 1980",
+      x="One Story",
+      y='Number of Homes'
+    )
+  + theme(
+      plot_title=element_text(size=20)
+    )
+)
+```
+
+Secondly, most homes without attached garages were built since 1980. I honestly cannot find anything about why this might be happening, but my guess would be that they are becoming less popular for aesthetic reasons.
+
+```{python}
+df_plotting['gartype_Att'] = df_plotting['gartype_Att'].astype('bool')
+
+(
+  ggplot(df_plotting, aes(x="gartype_Att",fill='before1980'))
+  + geom_bar(stat='count', position='dodge')
+  + scale_fill_manual(
+      values = ['#e6272f', '#6d9ade'],
+      name = "House Built:",
+      labels = legend_labels
+    )
+  + labs(
+      title="Homes with Attached Garages Before and After 1980",
+      x="Attached Garage",
+      y='Number of Homes'
+    )
+  + theme(
+      plot_title=element_text(size=20)
+    )
+)
+```
+
+Thirdly, the data has a "Quality" scale from A-D and X, which basically says how high quality the home is. The majority of the homes in the dataset are in the "C" category, meaning decent quality homes, but not the best. Most of the homes in this C category were built in or after 1980, which could suggest a lot more pre-built homes where the materials used weren't decided by the homeowner. After 1980 it became a lot cheaper (hence the lower-quality building materials) and more popular to buy a home pre-built rather than build it yourself. 
+
+```{python}
+df_plotting['quality_C'] = df_plotting['quality_C'].astype('bool')
+
+(
+  ggplot(df_plotting, aes(x="quality_C",fill='before1980'))
+  + geom_bar(stat='count', position='dodge')
+  + scale_fill_manual(
+      values = ['#e6272f', '#6d9ade'],
+      name = "House Built:",
+      labels = legend_labels
+    )
+  + labs(
+      title='Homes of Quality "C" Before and After 1980',
+      x="C-Quality",
+      y='Number of Homes'
+    )
+  + theme(
+      plot_title=element_text(size=20)
+    )
+)
+```
+
+
+## QUESTION|TASK 2
+
+__Build a classification model labeling houses as being built “before 1980” or “during or after 1980”.__ Your goal is to reach or exceed 90% accuracy. Explain your final model choice (algorithm, tuning parameters, etc) and describe what other models you tried.  
+
+I went with an XGBClassifier model for this project because I am in the Machine Learning class right now and I remember my teacher in that class saying that XGBoost is often his go-to model if he needs to get things done quickly and well. For parameters I made the 'objective' 'binary:hinge', which basically tells it that the output should be either a 1 or a 0. The 'eval_metric' tells the model what to optimize, and the 'error' option is calculated as #(wrong cases)/#(all cases). I didn't end up trying any other models because the XGBoost model got over 90% accuracy first try.
+
+```{python}
+features_in_order_of_importance = ['livearea','basement','netprice','numbaths','smonth','finbsmnt','numbdrm','tasp','deduct','abstrprd','nocars','gartype_Att','sprice','quality_C','status_I','quality_D','condition_AVG','arcstyle_ONE-STORY','arcstyle_MIDDLE UNIT','stories','syear','qualified_Q','gartype_Det','arcstyle_ONE AND HALF-STORY','arcstyle_END UNIT','arcstyle_TWO-STORY','condition_Good','quality_B','quality_A','totunits','condition_VGood','arcstyle_TRI-LEVEL','quality_X','gartype_det/CP','arcstyle_BI-LEVEL','arcstyle_THREE-STORY','condition_Excel','arcstyle_TRI-LEVEL WITH BASEMENT','arcstyle_CONVERSIONS','gartype_CP','arcstyle_TWO AND HALF-STORY','gartype_Att/Det','qualified_U','gartype_None','arcstyle_SPLIT LEVEL','condition_Fair','gartype_att/CP','status_V']
+
+X = df[features_in_order_of_importance]
+y = df['before1980']
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = XGBClassifier(
+    objective='binary:hinge',
+    eval_metric='error',
+    use_label_encoder=False
+)
+
+model.fit(X_train, y_train)
+y_pred = model.predict(X_test)
+```
+
+```{python}
+accuracy = accuracy_score(y_test, y_pred)
+precision = precision_score(y_test, y_pred)
+recall = recall_score(y_test, y_pred)
+f1 = f1_score(y_test, y_pred)
+
+print('Accuracy:', accuracy)
+print('Precision:', precision)
+print('Recall:', recall)
+print('F1:', f1)
+```
+
+
+## QUESTION|TASK 3
+
+__Justify your classification model by discussing the most important features selected by your model.__ This discussion should include a feature importance chart and a description of the features. 
+
+I decided to do this part before part one, which is why I graphed the three most important features for that part. But as I already explained in part one, it makes sense that one story buildings would be the most important feature (because of the large population that is aging and needing single story homes). Basically I'm saying see task 1 for an explanation of the most important features. 
+
+
+```{python}
+influences = (pd.DataFrame({'importance': model.feature_importances_,
+                           'feature': X_train.columns})
+                           .sort_values('importance')
+                           .query('importance >= 0.02'))
+
+(
+ggplot(data = influences, mapping = aes(x = 'feature', y = 'importance'))
+  + geom_bar(stat = 'identity') 
+  + coord_flip()
+  + labs(
+    x = "Feature",
+    y = "Importance",
+    title = "XGBoost Classifier Feature Importance"
+  )
+  + theme(plot_title=element_text(size=15,hjust=-4.1))
+
+)
+```
+
+```{python}
+# importance_scores = model.feature_importances_
+# feature_names = X_train.columns if hasattr(X_train, "columns") else np.arange(X_train.shape[1])
+# sorted_indices = np.argsort(importance_scores)[::-1]
+
+# for i in sorted_indices:
+#     print(f"{feature_names[i]}: {importance_scores[i]}")
+```
+
+
+## QUESTION|TASK 4
+
+__Describe the quality of your classification model using 2-3 different evaluation metrics.__ You also need to explain how to interpret each of the evaluation metrics you use.  
+
+You can see above (when I ran my model) what the accuracy, precision, recall, and f1 scores are for my model. Here is a quick explanation of each of these metrics:
+
+Accuracy - The ratio of how many correct predictions to how many total predictions were made. This is not always the best metric because it does not tell us what the model is doing well on versus what it is failing on. What I mean is, if the data were 90% one category and 10% another category, the model could just predict the first category every time and have an accuracy score of 90%, which is decent. But the model would still not be very intelligent. 
+
+Precision - When a model makes a prediction of a certain category, what percent of the predictions for that category were correct? This is the precision. Having a high precision means the model had few "false positives". But, focusing on just the precision score might induce a model to be very conservative in it's "positive" predictions. It might decide to only guess a certain category if it is absolutely positive about it. That way the precision is very high. 
+
+Recall - Out of all the actual positives, how many did the model correctly identify?
+Focusing on recall can have the opposite effect as focusing on precision. Where precision makes the model more hesitant to guess "positive", recall makes the model _more_ likely to. Because if it guesses "positive" for all of them, the recall would be 100%.
+
+F1 Score - F1 is a strange sort of balancing ratio between precision and recall that forces the model to focus on both rather than one or the other. A high F1 score means that the model performed well on both precision and recall. The F1 score is usually the most accurate to how your model is performing in general cases. 
+
+---
+
+## STRETCH QUESTION|TASK 1
+
+__Repeat the classification model using 3 different algorithms.__ Display their Feature Importance, and Decision Matrix. Explain the differences between the models and which one you would recommend to the Client.   
+
+_type your results and analysis here_
+
+```{python}
+# DECISION TREE
+from sklearn.tree import DecisionTreeClassifier
+
+tree = DecisionTreeClassifier()
+tree.fit(X_train, y_train)
+tree_pred = tree.predict(X_test)
+
+tree_accuracy = accuracy_score(y_test, tree_pred)
+tree_precision = precision_score(y_test, tree_pred)
+tree_recall = recall_score(y_test, tree_pred)
+tree_f1 = f1_score(y_test, tree_pred)
+
+print('Decision Tree')
+print('Accuracy:', tree_accuracy)
+print('Precision:', tree_precision)
+print('Recall:', tree_recall)
+print('F1:', tree_f1)
+print('Confusion Matrix:')
+print(confusion_matrix(y_test, tree_pred))
+```
+
+```{python}
+influences = (pd.DataFrame({'importance': tree.feature_importances_,
+                           'feature': X_train.columns})
+                           .sort_values('importance')
+                           .query('importance >= 0.02'))
+
+(
+ggplot(data = influences, mapping = aes(x = 'feature', y = 'importance'))
+  + geom_bar(stat = 'identity') 
+  + coord_flip()
+  + labs(
+    x = "Feature",
+    y = "Importance",
+    title = "Decision Tree Classifier Feature Importance"
+  )
+  + theme(plot_title=element_text(size=15,hjust=-1.3))
+)
+```
+
+```{python}
+# RANDOM FOREST
+from sklearn.ensemble import RandomForestClassifier
+
+forest = RandomForestClassifier()
+forest.fit(X_train, y_train)
+forest_pred = forest.predict(X_test)
+
+forest_accuracy = accuracy_score(y_test, forest_pred)
+forest_precision = precision_score(y_test, forest_pred)
+forest_recall = recall_score(y_test, forest_pred)
+forest_f1 = f1_score(y_test, forest_pred)
+
+print('Random Forest')
+print('Accuracy:', forest_accuracy)
+print('Precision:', forest_precision)
+print('Recall:', forest_recall)
+print('F1:', forest_f1)
+print('Confusion Matrix:')
+print(confusion_matrix(y_test, forest_pred))
+```
+
+```{python}
+influences = (pd.DataFrame({'importance': forest.feature_importances_,
+                           'feature': X_train.columns})
+                           .sort_values('importance')
+                           .query('importance >= 0.02'))
+
+(
+ggplot(data = influences, mapping = aes(x = 'feature', y = 'importance'))
+  + geom_bar(stat = 'identity') 
+  + coord_flip()
+  + labs(
+    x = "Feature",
+    y = "Importance",
+    title = "Random Forest Classifier Feature Importance"
+  )
+  + theme(plot_title=element_text(size=15,hjust=-1.45))
+)
+```
+
+```{python}
+# NEURAL NETWORK
+import tensorflow as tf
+from tensorflow import keras
+from keras import Input, Model
+
+norm = MinMaxScaler().fit(X_train)
+X_train = norm.transform(X_train)
+X_test = norm.transform(X_test)
+
+model = Sequential()
+model.add(Input(shape=(len(X_train[0]),)))
+model.add(Dense(16, activation='relu'))
+model.add(Dense(8, activation='relu'))
+model.add(Dense(1, activation='sigmoid'))
+
+opt = keras.optimizers.Adam()
+model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+
+history = model.fit(X_train, y_train, epochs=2000, validation_split=.2, batch_size=32, callbacks=[early_stop],shuffle=False)
+
+hist = pd.DataFrame(history.history)
+
+hist = hist.reset_index()
+
+predictions = model.predict(X_test)
+binary_predictions = (predictions >= 0.5).astype(int)
+
+nn_accuracy = accuracy_score(y_test, binary_predictions)
+nn_precision = precision_score(y_test, binary_predictions)
+nn_recall = recall_score(y_test, binary_predictions)
+nn_f1 = f1_score(y_test, binary_predictions)
+
+print('Neural Network')
+print('Accuracy:', nn_accuracy)
+print('Precision:', nn_precision)
+print('Recall:', nn_recall)
+print('F1:', nn_f1)
+print('Confusion Matrix:')
+print(confusion_matrix(y_test, binary_predictions))
+```
+
+It doesn't work the same way to create a graph of feature importance for the NN. I am not sure if there is a way to do this or if it even makes sense to try to. 
+
+
+## STRETCH QUESTION|TASK 2
+
+__Join the `dwellings_neighborhoods_ml.csv` data to the `dwelling_ml.csv` on the `parcel` column to create a new dataset. Duplicate the code for the stretch question above and update it to use this data.__ Explain the differences and if this changes the model you recommend to the Client.   
+
+The additional features made a big difference in the performance of all the different types of models. I added an additional set of scores below for each model: how much better the model performed than their previous versions (the same model without the additional features). This shows that across all the models adding more features helped a lot. I would recommend the Random Forest to the Client because of the models I tested, it performed the best on the evaluation metrics explained in task 4.
+
+```{python}
+df_neiborhoods = pd.read_csv("https://raw.githubusercontent.com/byuidatascience/data4dwellings/master/data-raw/dwellings_neighborhoods_ml/dwellings_neighborhoods_ml.csv")
+large_df = pd.merge(df, df_neiborhoods, on="parcel")
+
+large_X = large_df.drop(columns = ['parcel', 'yrbuilt', 'before1980'])
+large_y = large_df.before1980
+
+X_large_train, X_large_test, y_large_train, y_large_test = train_test_split(large_X, large_y, test_size=0.2, random_state=42)
+```
+
+```{python}
+# XGBoost
+model_large = XGBClassifier(
+    objective='binary:hinge',
+    eval_metric='error',
+    use_label_encoder=False
+)
+
+model_large.fit(X_large_train, y_large_train)
+y_large_pred = model_large.predict(X_large_test)
+
+accuracy_large = accuracy_score(y_large_test, y_large_pred)
+precision_large = precision_score(y_large_test, y_large_pred)
+recall_large = recall_score(y_large_test, y_large_pred)
+f1_large = f1_score(y_large_test, y_large_pred)
+
+print('Large Dataset XGBoost')
+print('Accuracy:', accuracy_large)
+print('Precision:', precision_large)
+print('Recall:', recall_large)
+print('F1:', f1_large)
+print()
+print("Difference of scores before and after adding data:")
+print('Accuracy Increase:', accuracy_large - accuracy)
+print('Precision Increase:', precision_large - precision)
+print('Recall Increase:', recall_large - recall)
+print('F1 Increase:', f1_large - f1)
+```
+
+```{python}
+# DECISION TREE
+large_tree = DecisionTreeClassifier()
+large_tree.fit(X_large_train, y_large_train)
+large_tree_pred = large_tree.predict(X_large_test)
+
+large_tree_accuracy = accuracy_score(y_large_test, large_tree_pred)
+large_tree_precision = precision_score(y_large_test, large_tree_pred)
+large_tree_recall = recall_score(y_large_test, large_tree_pred)
+large_tree_f1 = f1_score(y_large_test, large_tree_pred)
+
+print('Large Dataset Decision Tree')
+print('Accuracy:', large_tree_accuracy)
+print('Precision:', large_tree_precision)
+print('Recall:', large_tree_recall)
+print('F1:', large_tree_f1)
+print()
+print("Difference of scores before and after adding data:")
+print('Accuracy Increase:', large_tree_accuracy - tree_accuracy)
+print('Precision Increase:', large_tree_precision - tree_precision)
+print('Recall Increase:', large_tree_recall - tree_recall)
+print('F1 Increase:', large_tree_f1 - tree_f1)
+```
+
+```{python}
+# RANDOM FOREST
+large_forest = RandomForestClassifier()
+large_forest.fit(X_large_train, y_large_train)
+large_forest_pred = large_forest.predict(X_large_test)
+
+large_forest_accuracy = accuracy_score(y_large_test, large_forest_pred)
+large_forest_precision = precision_score(y_large_test, large_forest_pred)
+large_forest_recall = recall_score(y_large_test, large_forest_pred)
+large_forest_f1 = f1_score(y_large_test, large_forest_pred)
+
+print('Large Dataset Random Forest')
+print('Accuracy:', large_forest_accuracy)
+print('Precision:', large_forest_precision)
+print('Recall:', large_forest_recall)
+print('F1:', large_forest_f1)
+print()
+print("Difference of scores before and after adding data:")
+print('Accuracy Increase:', large_forest_accuracy - forest_accuracy)
+print('Precision Increase:', large_forest_precision - forest_precision)
+print('Recall Increase:', large_forest_recall - forest_recall)
+print('F1 Increase:', large_forest_f1 - forest_f1)
+```
+
+```{python}
+# NEURAL NETWORK
+large_norm = MinMaxScaler().fit(X_large_train)
+X_large_train = large_norm.transform(X_large_train)
+X_large_test = large_norm.transform(X_large_test)
+
+model = Sequential()
+model.add(Input(shape=(len(X_large_train[0]),)))
+model.add(Dense(16, activation='relu'))
+model.add(Dense(8, activation='relu'))
+model.add(Dense(1, activation='sigmoid'))
+
+opt = keras.optimizers.Adam()
+model.compile(loss='binary_crossentropy', optimizer=opt, metrics=['accuracy'])
+
+early_stop = keras.callbacks.EarlyStopping(monitor='val_loss', patience=10)
+
+history = model.fit(X_large_train, y_large_train, epochs=2000, validation_split=.2, batch_size=32, callbacks=[early_stop],shuffle=False)
+
+hist = pd.DataFrame(history.history)
+
+hist = hist.reset_index()
+
+predictions = model.predict(X_large_test)
+binary_predictions = (predictions >= 0.5).astype(int)
+
+large_nn_accuracy = accuracy_score(y_large_test, binary_predictions)
+large_nn_precision = precision_score(y_large_test, binary_predictions)
+large_nn_recall = recall_score(y_large_test, binary_predictions)
+large_nn_f1 = f1_score(y_large_test, binary_predictions)
+
+print('Large Dataset Neural Network')
+print('Accuracy:', large_nn_accuracy)
+print('Precision:', large_nn_precision)
+print('Recall:', large_nn_recall)
+print('F1:', large_nn_f1)
+print()
+print("Difference of scores before and after adding data:")
+print('Accuracy Increase:', large_nn_accuracy - nn_accuracy)
+print('Precision Increase:', large_nn_precision - nn_precision)
+print('Recall Increase:', large_nn_recall - nn_recall)
+print('F1 Increase:', large_nn_f1 - nn_f1)
+```
+
+
+
+
+## STRETCH QUESTION|TASK 3
+
+__Can you build a model that predicts the year a house was built?__ Explain the model and the evaluation metrics you would use to determine if the model is good.  
+
+I decided to use the XGBRegressor for this problem because it is fairly easy to build and the XGBoost seemed to perform about as well as the Random Forest in the classification problem, so I figured it would do fairly well on the regression problem as well. I decided to do some hyperparameter tuning with a Grid Search (I commented out the GridSearchCV code because it takes a long time to run and I only needed to run it once). After that I got an MSE of 12.6 (ish) which suggests that the model was predicting within 12.6 years of the actual value (so if it guessed a certain home was built in 1983, the actual value could be +-12.6 years of that). It performed with an MAE of 6.9 (ish), which means that on average the model predicted 6.9 years off of the actual value. Lastly the R^2 value is difficult to explain, but put simply it is a measure of how well the model explains the variance in the yrbuilt values. So 88.5% of the variation in the model is explained by the model while the remaining 11.5% variance is due to unexplained factors (a higher R^2 score is better, with 1 being the best). 
+
+```{python}
+from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+
+X_reg = large_df.drop(columns = ['parcel', 'yrbuilt', 'before1980'])
+y_reg = large_df.yrbuilt
+
+X_reg_train, X_reg_test, y_reg_train, y_reg_test = train_test_split(X_reg, y_reg, test_size=0.2, random_state=42)
+
+# param_grid = {
+#     'n_estimators': [100, 300, 500],
+#     'learning_rate': [0.01, 0.1, 0.2],
+#     'max_depth': [3, 5, 7],
+#     'subsample': [0.7, 0.8, 1.0],
+#     'colsample_bytree': [0.7, 0.8, 1.0]
+# }
+# search = GridSearchCV(XGBRegressor(), param_grid, cv=5, scoring='neg_mean_squared_error', n_jobs=-1)
+# search.fit(X_reg_train, y_reg_train)
+# best_model = search.best_estimator_
+# print("Best parameters:", search.best_params_)
+
+regr = XGBRegressor(colsample_bytree=0.7,learning_rate=0.2,max_depth=7,n_estimators=500,subsample=0.8)
+regr.fit(X_reg_train, y_reg_train)
+reg_pred = regr.predict(X_reg_test)
+
+rmse = np.sqrt(mean_squared_error(y_reg_test, reg_pred))
+mae = mean_absolute_error(y_reg_test, reg_pred)
+r2 = r2_score(y_reg_test, reg_pred)
+
+print(f"RMSE: {rmse}")
+print(f"MAE: {mae}")
+print(f"R^2: {r2}")
+```
+
+
+---

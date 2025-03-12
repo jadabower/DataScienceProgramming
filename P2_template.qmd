@@ -1,0 +1,279 @@
+---
+title: "Client Report - Finding Relationships in Baseball"
+subtitle: "Course DS 250"
+author: "Jada Bower"
+format:
+  html:
+    self-contained: true
+    page-layout: full
+    title-block-banner: true
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    number-sections: false
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Show the code"
+    code-overflow: wrap
+    code-copy: hover
+    code-tools:
+        source: false
+        toggle: true
+        caption: See code
+execute: 
+  warning: false
+    
+---
+
+```{python}
+import pandas as pd 
+import numpy as np
+import sqlite3
+from lets_plot import *
+import math
+
+LetsPlot.setup_html(isolated_frame=True)
+```
+
+
+```{python}
+# Learn more about Code Cells: https://quarto.org/docs/reference/cells/cells-jupyter.html
+
+# Include and execute your code here
+sqlite_file = 'lahmansbaseballdb.sqlite'
+# this file must be in the same location as your .qmd or .py file
+con = sqlite3.connect(sqlite_file)
+```
+
+## QUESTION|TASK 1
+
+__Write an SQL query to create a new dataframe about baseball players who attended BYU-Idaho. The new table should contain five columns: playerID, schoolID, salary, and the yearID/teamID associated with each salary. Order the table by salary (highest to lowest) and print out the table in your report.__  
+
+For this task I first looked at the 'collegeplaying' table and found that there were very few players who attended BYU-Idaho. So when I used a basic INNER JOIN to build my table originally, it was easy to see that there was one player missing from the three playerID's I had seen in the collegeplaying table. I found that for the player "Troy Cate" there was no information in the 'salaries' table, so he was left out of the resulting dataset. So I ended up using the OUTER JOIN instead, so that all BYU-Idaho alumni would be included, even if they weren't in the salaries table.
+
+```{python}
+q = """
+        SELECT 
+            DISTINCT c.playerID,
+            c.schoolID,
+            s.salary,
+            s.yearID,
+            s.teamID
+        FROM salaries AS s
+        RIGHT OUTER JOIN collegeplaying AS c
+            ON s.playerID = c.playerID
+        WHERE c.schoolID = 'idbyuid'
+        ORDER BY s.salary DESC
+    """
+results = pd.read_sql_query(q, con)
+print(results)
+```
+
+
+## QUESTION|TASK 2
+
+__This three-part question requires you to calculate batting average (number of hits divided by the number of at-bats)__  
+    _a. Write an SQL query that provides playerID, yearID, and batting average for players with at least 1 at bat that year. Sort the table from highest batting average to lowest, and then by playerid alphabetically. Show the top 5 results in your report.
+    b. Use the same query as above, but only include players with at least 10 at bats that year. Print the top 5 results.  
+    c. Now calculate the batting average for players over their entire careers (all years combined). Only include players with at least 100 at bats, and print the top 5 results._
+
+What I saw from this task is that the batting average lowers significantly with an increase in data. What I mean is, of course there were a few people who had a perfect batting average for the season if they were only at the bat once. They just happened to hit that one time and suddenly they had a perfect batting average. When we slimmed it down to seasons where people were at bat at least ten times, the batting average dropped significantly. However, this number still isn't totally accurate because 10 is still a fairly small number and they could have just gotten lucky a few times consecutively. I think the last part is definitely the best way to see the actual batting average for a player. Because there is so much more data, even if a player did just get lucky a few times in a row, that has less of an effect on their average, so it's more true to the player's skill than their luck. 
+
+```{python}
+# H = number of hits
+# AB = number of at-bats
+q = """
+        SELECT 
+            playerID,
+            yearID,
+            (H * 1.0 / AB) AS batting_avg
+        FROM batting
+        WHERE AB >= 1
+        ORDER BY batting_avg DESC, playerID
+        LIMIT 5
+    """
+results = pd.read_sql_query(q, con)
+print(results)
+```
+
+```{python}
+q = """
+        SELECT 
+            playerID,
+            yearID,
+            (H * 1.0 / AB) AS batting_avg
+        FROM batting
+        WHERE AB >= 10
+        ORDER BY batting_avg DESC, playerID
+        LIMIT 5
+    """
+results = pd.read_sql_query(q, con)
+print(results)
+```
+
+```{python}
+q = """
+        SELECT 
+            playerID,
+            (SUM(H) * 1.0 / SUM(AB)) AS player_batting_avg
+        FROM batting
+        GROUP BY playerID
+        HAVING SUM(AB) >= 100
+        LIMIT 5
+    """
+results = pd.read_sql_query(q,con)
+print(results)
+```
+
+
+## QUESTION|TASK 3
+
+__Pick any two baseball teams and compare them using a metric of your choice (average salary, home runs, number of wins, etc). Write an SQL query to get the data you need, then make a graph using Lets-Plot to visualize the comparison. What do you learn?__
+
+I know nothing about baseball, so I decided to pick two teams whose names stuck out when I was scrolling through the database 'teams' table. I picked the "Tampa Bay Devil Rays" and the "Philadelphia Phillies". And although both teams have excellent names, it seems like you would probably want to be a player on the Philadelphia Phillies than the Tampa Bay Devil Rays, based off of the average salaries. 
+
+```{python}
+q = """
+        SELECT
+            t.name,
+            AVG(s.salary) as avg_salary
+        FROM salaries AS s
+        JOIN teams AS t
+            ON s.teamID = t.teamID
+        WHERE t.name IN ('Tampa Bay Devil Rays', 'Philadelphia Phillies')
+        GROUP BY t.teamID
+    """
+results = pd.read_sql_query(q, con)
+
+(
+  ggplot(results, aes(x="name", y="avg_salary", fill="name"))
+  + geom_bar(stat='identity')
+  + labs(
+    x="Team Name",
+    y="Average Salary of Players",
+    title="Comparing Salaries of Teams"
+  )
+  + guides(fill="none")
+  + scale_fill_manual(values={'Philadelphia Phillies': '#c51e4c', 'Tampa Bay Devil Rays': "#162c59"})
+  + theme(plot_title=element_text(size=20))
+)
+```
+
+---
+
+## STRETCH QUESTION|TASK 1
+
+__Advanced Salary Distribution by Position (with Case Statement):__  
+
+    * Write an SQL query that provides a summary table showing the average salary for each position 
+      (e.g., pitcher, catcher, outfielder). Hint: position information can be found in the fielding 
+      table in the POS column. Beware, it is common for a player to play multiple positions in a 
+      single year. For this analysis, each player's salary should only be counted toward one position 
+      in a given year (presumably the position at which they played the most games that year). 
+      
+      Include the following columns:
+        * position
+        * average_salary
+        * total_players
+        * highest_salary  
+
+    * The highest_salary column should display the highest salary ever earned by a player in that position.
+    
+    * Additionally, create a new column called salary_category using a case statement:
+        * If the average salary is above $1 million, categorize it as “High Salary.”  
+        * If the average salary is between $500,000 and $1 million, categorize it as “Medium Salary.”  
+        * Otherwise, categorize it as “Low Salary.”  
+
+    * Order the table by average salary in descending order.
+    * Print the top 10 rows of this summary table.
+
+This query required a lot of implementation of SQL that I had not used before. It felt a lot more like a real language in this query than it has in the past for me. I had to use CASE statements and several layers of embedded queries, which was very interesting. From the actual data I learned that on average, the First Basemen make a lot more money than other positions. However, the most money made in one year was tied between Pitcher and Third Baseman. I also noticed that there were some players who earned a salary but had no position in the fielding table. These could have been managers or some other logistical position, but they seemed to do very well financially as well. All baseball players seem to be payed extremely well (at least the players in this dataset).
+
+```{python}
+q = """
+        SELECT
+            t.POS AS position,
+            AVG(s.salary) AS average_salary,
+            COUNT(DISTINCT s.playerID) AS total_players,
+            MAX(s.salary) AS highest_salary,
+            CASE
+                WHEN AVG(s.salary) > 1000000 THEN "High Salary"
+                WHEN AVG(s.salary) > 500000 THEN "Medium Salary"
+                ELSE "Low Salary"
+            END AS salary_category
+        FROM (
+            WITH Ranked AS (
+                SELECT yearID, playerID, POS, G,
+                    ROW_NUMBER() OVER (PARTITION BY yearID, playerID ORDER BY G DESC, POS) AS rn
+                FROM fielding
+            )
+            SELECT yearID, playerID, POS, G
+            FROM Ranked
+            WHERE rn = 1
+        ) t
+        FULL OUTER JOIN salaries AS s
+            ON t.playerID = s.playerID
+            AND t.yearID = s.yearID
+        GROUP BY t.POS
+        ORDER BY AVG(s.salary) DESC
+        LIMIT 10
+    """
+
+results = pd.read_sql_query(q, con)
+print(results)
+```
+
+
+## STRETCH QUESTION|TASK 2
+
+__Advanced Career Longevity and Performance (with Subqueries):__
+
+    * Calculate the average career length (in years) for players 
+      who have played at least one game. Then, identify the top 
+      10 players with the longest careers (based on the number 
+      of years they played). Include their:  
+
+        * playerID
+        * first_name
+        * last_name
+        * career_length
+
+    * The career_length should be calculated as the difference 
+      between the maximum and minimum yearID for each player. 
+
+This stretch question turned out to be much simpler than the other stretch problem was, and I didn't end up using subqueries. But I still did something new with the julianday method. I had not done much with date manipulation in SQL in the past, and certainly never in SQLite. But it was fairly easy to find online what I needed to find the difference between two dates. My findings from this task were as follows:
+I find it very interesting that the average career length for baseball players is only about 9 years. Typically a career lasts for more like 40 years for people, but not even the longest-career player in this dataset's career lasted that long. I suppose that makes it more understandable why the player's average salaries were so high. If they are only going to be able to work professionally for about 10 years, you would need your salary to be much higher to be able to support a family. 
+
+```{python}
+q = """
+        SELECT
+            AVG((julianday(p.finalgame_date) - julianday(p.debut_date)) / 365.25) AS avg_career_length
+        FROM people as p
+        INNER JOIN batting as b -- insures all the players have played at least one game
+            ON p.playerID = b.playerID
+    """
+
+results = pd.read_sql_query(q, con)
+print(results)
+print()
+
+q = """
+        SELECT
+            p.playerID,
+            p.nameFirst AS first_name,
+            p.nameLast AS last_name,
+            (julianday(p.finalgame_date) - julianday(p.debut_date)) / 365.25 AS career_length
+        FROM people as p
+        INNER JOIN batting as b -- insures all the players have played at least one game
+            ON p.playerID = b.playerID
+        GROUP BY p.playerID
+        ORDER BY career_length DESC
+        LIMIT 10
+    """
+
+results = pd.read_sql_query(q, con)
+print(results)
+```
+
+---
+

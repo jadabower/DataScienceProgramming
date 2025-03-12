@@ -1,0 +1,84 @@
+---
+title: "Untitled"
+format: html
+---
+
+
+```{python}
+#import sys
+#!{sys.executable} -m pip install requests
+# %%
+# The usuals
+import pandas as pd
+import numpy as np
+from lets_plot import *
+
+LetsPlot.setup_html(isolated_frame=True)
+```
+
+```{python}
+# %%
+# UFO Sightings
+url = "https://byuistats.github.io/DS250-Course/Skill%20Builders/json_missing.json"
+df = pd.read_json(url)
+df
+```
+
+We'll be loosely following the skill builder.
+Let's start by getting to know our data and any cleaning needed.
+
+```{python}
+df.shape_reported = df.shape_reported.replace(np.nan, "missing")
+df.distance_reported = df.distance_reported.replace(-999, np.nan)
+df.distance_reported = df.distance_reported.replace(np.nan, df.distance_reported.mean())
+```
+
+```{python}
+df2 = df.assign(distance_reported = lambda x: x.distance_reported / 1000,
+                new_size = np.where(df.estimated_size > 10000,
+                                    df.estimated_size / 144,
+                                    df.estimated_size)
+                )
+df["new_size"] = np.where(df.city.isin(['Holyoke', 'Crater Lake', 'Los Angeles', 'San Diego', 'Dallas']), df.estimated_size / 144, df.estimated_size) # Alternate way to do this
+```
+
+Create a table with some summary statistics (mean and median of size) for each shape
+
+```{python}
+df_spence = (
+    df2.groupby('shape_reported')
+    .aggregate(med_size = ('new_size', 'median'),
+               mean_size = ('new_size', 'mean'),
+               how_many = ('shape_reported', 'size'))
+    .reset_index()
+)
+df_spence.head()
+```
+
+Let's plot the mean_size by the shape
+
+```{python}
+ggplot(data = df_spence.sort_values('mean_size', ascending = False)) + geom_bar(aes(x = 'shape_reported', y = 'mean_size'), stat = 'identity')
+```
+
+To sort not by value or alphabetically, but some other variable
+
+```{python}
+all_categories = ['CIGAR', 'CIRCLE', 'CYLINDER', 'DISK', 'OVAL', 'RECTANGLE', 'SPHERE', 'TRIANGLE', 'FIREBALL', 'FORMATION', 'LIGHT', 'OTHER', 'missing']
+# FLASH was left out of the list so it became a missing value
+df_spence['shape_cat'] = pd.Categorical(df_spence['shape_reported'], categories = all_categories, ordered = True)
+```
+
+```{python}
+ggplot(data = df_spence) + geom_bar(aes(x = 'shape_reported', y = 'mean_size'), stat = 'identity')
+```
+
+Let's try melting the data into longer format
+
+```{python}
+df_long = pd.melt(df_spence, id_vars = ['shape_reported', 'how_many', 'shape_cat'], var_name = 'source', value_name = 'size')
+```
+
+```{python}
+ggplot(data = df_long) + geom_bar(aes(x = 'shape_cat', y = 'size', fill = 'source'), stat = 'identity', position = 'dodge') + scale_y_continuous(limits = [3000, 6000])
+```
