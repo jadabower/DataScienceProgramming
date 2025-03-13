@@ -237,7 +237,7 @@ In this case, Recall might be the most useful thing to look for, because we woul
 
 __Repeat the classification model using 3 different algorithms.__ Display their Feature Importance, and Decision Matrix. Explain the differences between the models and which one you would recommend to the Client.   
 
-_type your results and analysis here_
+I decided to run a decision tree, random forest, and neural network for my other three models. The decision tree is one of the simplest models, it just picks a feature and splits the data by that feature until it has a decent prediction for the data. The random forest basically runs a bunch of smaller trees and takes the most guessed category from the trees as the prediction. And the neural network is kind of complicated, but basically it takes in all the features as numbers, multiplies them all by some random number, and looks at how far the output is from the actual value. Then it changes the numbers slightly to try to reduce the loss and eventually gets better results. I think from this I would recommend the random forest because it performed the best in nearly all the evaluation metrics. 
 
 ```{python}
 # DECISION TREE
