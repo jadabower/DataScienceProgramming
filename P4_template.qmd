@@ -229,6 +229,8 @@ Focusing on recall can have the opposite effect as focusing on precision. Where 
 
 F1 Score - F1 is a strange sort of balancing ratio between precision and recall that forces the model to focus on both rather than one or the other. A high F1 score means that the model performed well on both precision and recall. The F1 score is usually the most accurate to how your model is performing in general cases. 
 
+In this case, Recall might be the most useful thing to look for, because we would rather find all the houses with asbestos, even if we also include some that weren't actually built before 1980. Better be safe and check all possible houses than only check a few of the houses and let some people go on living in homes with asbestos. 
+
 ---
 
 ## STRETCH QUESTION|TASK 1
