@@ -73,57 +73,147 @@ df_cols
 
 ```{python}
 df = pd.read_csv("https://github.com/fivethirtyeight/data/raw/master/star-wars-survey/StarWars.csv", encoding_errors="ignore", skiprows=2, names=df_cols['newnames'])
-print(df.columns)
 ```
 
 
 ## QUESTION|TASK 2
 
-__Clean and format the data so that it can be used in a machine learning model.__ As you format the data, you should complete each item listed below. In your final report provide example(s) of the reformatted data with a short description of the changes made.  
-    a. Filter the dataset to respondents that have seen at least one film  
-    a. Create a new column that converts the age ranges to a single number. Drop the age range categorical column  
-    a. Create a new column that converts the education groupings to a single number. Drop the school categorical column  
-    a. Create a new column that converts the income ranges to a single number. Drop the income range categorical column  
-    a. Create your target (also known as “y” or “label”) column based on the new income range column  
-    a. One-hot encode all remaining categorical columns   
+__Clean and format the data so that it can be used in a machine learning model.__ As you format the data, you should complete each item listed below. In your final report provide example(s) of the reformatted data with a short description of the changes made.
 
-_type your results and analysis here_
+    * Filter the dataset to respondents that have seen at least one film
+    * Create a new column that converts the age ranges to a single number. Drop the age range categorical column
+    * Create a new column that converts the education groupings to a single number. Drop the school categorical column
+    * Create a new column that converts the income ranges to a single number. Drop the income range categorical column
+    * One-hot encode all remaining categorical columns
+    * Create your target (also known as “y” or “label”) column based on the new income range column
 
-```{python}
-# Include and execute your code here
-
-
-```
+I dropped all the rows where all of the 'seen_episode_...' columns were N/A (meaning they hadn't seen any of the movies). Then I mapped all the columns that were in ranges and had rankings in strings but could have numerical values. Along with that I converted a lot of the values that were string versions of Booleans into either bool types or int types (with just 1 and 0). The I one-hot encoded the remaining columns and then separated the X and y features. 
 
 ```{python}
-# Include and execute your code here
-
-
+# drop all rows of people who haven't seen any movies
+df = df.dropna(subset=['seen_episode_i', 'seen_episode_ii', 'seen_episode_iii', 'seen_episode_iv', 'seen_episode_v', 'seen_episode_vi'], how='all')
+df.head()
 ```
+Here we see that no entry is N/A for all of the 'seen_episode_...' columns.
 
 ```{python}
-# Include and execute your code here
-
-
+# Range values that can and should be saved as integers
+ages = {
+  '18-29':18,
+  '30-44':30,
+  '45-60':45,
+  '> 60':60
+}
+df['age'] = df['age'].map(ages)
+incomes = {
+  '$0 - $24,999': 0,
+  '$25,000 - $49,999': 25000,
+  '$50,000 - $99,999': 50000,
+  '$100,000 - $149,999': 100000,
+  '$150,000+': 150000
+}
+df['household_income'] = df['household_income'].map(incomes)
+yrs_of_school = {
+  'Less than high school degree': 10,
+  'High school degree': 12,
+  'Some college or Associate degree': 14,
+  'Bachelor degree': 16,
+  'Graduate degree': 18
+}
+df['education'] = df['education'].map(yrs_of_school)
+df[['age', 'household_income', 'education']].head()
 ```
+Here we see that the values in these three columns that were before categorical with ranges are now numerical values. 
 
 ```{python}
-# Include and execute your code here
-
-
+# Boolean values saved as strings to integers
+# can't do bool because that doesn't support missing values
+fan_truth = {
+  'Yes': True,
+  'No': False
+}
+df['star_wars_fan'] = df['star_wars_fan'].map(fan_truth)
+df['star_wars_fan'] = df['star_wars_fan'].fillna(3).astype(int)
+df['star_wars_fan'] = df['star_wars_fan'].replace(3, np.nan)
+df['familiar_w_exp_universe'] = df['familiar_w_exp_universe'].map(fan_truth)
+df['familiar_w_exp_universe'] = df['familiar_w_exp_universe'].fillna(3).astype(int)
+df['familiar_w_exp_universe'] = df['familiar_w_exp_universe'].replace(3, np.nan)
+df['exp_universe_fan'] = df['exp_universe_fan'].map(fan_truth)
+df['exp_universe_fan'] = df['exp_universe_fan'].fillna(3).astype(int)
+df['exp_universe_fan'] = df['exp_universe_fan'].replace(3, np.nan)
+df['trekkie'] = df['trekkie'].map(fan_truth)
+df['trekkie'] = df['trekkie'].fillna(3).astype(int)
+df['trekkie'] = df['trekkie'].replace(3, np.nan)
+df[['star_wars_fan', 'familiar_w_exp_universe', 'exp_universe_fan', 'trekkie']].head()
 ```
+Here we changed the columns that were Yes/No questions to integers with either 1 (for Yes) or 0 (for No). I would have made these actual bool values, but that did not allow me to have any missing values (it just kept calling it an Object when I tried). 
+
 
 ```{python}
-# Include and execute your code here
-
-
+# Can get rid of this one because we already filtered out everyone who hasn't seen any star wars
+df = df.drop(columns=['seen_any_star_wars'])
 ```
+Here I just dropped the 'seen_any_star_wars' column because we already dropped all the rows of people who haven't seen any of the movies.
 
 ```{python}
-# Include and execute your code here
-
-
+# Convert the seen_episode_... columns to bools
+df['seen_episode_i'] = df['seen_episode_i'].notna()
+df['seen_episode_ii'] = df['seen_episode_ii'].notna()
+df['seen_episode_iii'] = df['seen_episode_iii'].notna()
+df['seen_episode_iv'] = df['seen_episode_iv'].notna()
+df['seen_episode_v'] = df['seen_episode_v'].notna()
+df['seen_episode_vi'] = df['seen_episode_vi'].notna()
+df[['seen_episode_i', 'seen_episode_ii', 'seen_episode_iii', 'seen_episode_iv', 'seen_episode_v', 'seen_episode_vi']].head()
 ```
+Here I converted all the 'seen_episode_...' type columns to bools.
+
+```{python}
+# fav_... columns to ints
+fav_vals = {
+  'Unfamiliar (N/A)': 0,
+  'Very unfavorably': 1,
+  'Somewhat unfavorably': 2,
+  'Neither favorably nor unfavorably (neutral)': 3,
+  'Somewhat favorably': 4,
+  'Very favorably': 5
+}
+df['fav_han_solo'] = df['fav_han_solo'].map(fav_vals)
+df['fav_luke_skywalker'] = df['fav_luke_skywalker'].map(fav_vals)
+df['fav_princess_leia_organa'] = df['fav_princess_leia_organa'].map(fav_vals)
+df['fav_anakin_skywalker'] = df['fav_anakin_skywalker'].map(fav_vals)
+df['fav_obi_wan_kenobi'] = df['fav_obi_wan_kenobi'].map(fav_vals)
+df['fav_emperor_palpatine'] = df['fav_emperor_palpatine'].map(fav_vals)
+df['fav_darth_vader'] = df['fav_darth_vader'].map(fav_vals)
+df['fav_lando_calrissian'] = df['fav_lando_calrissian'].map(fav_vals)
+df['fav_boba_fett'] = df['fav_boba_fett'].map(fav_vals)
+df['fav_c3p0'] = df['fav_c3p0'].map(fav_vals)
+df['fav_r2_d2'] = df['fav_r2_d2'].map(fav_vals)
+df['fav_jar_jar_binks'] = df['fav_jar_jar_binks'].map(fav_vals)
+df['fav_padme_amidala'] = df['fav_padme_amidala'].map(fav_vals)
+df['fav_yoda'] = df['fav_yoda'].map(fav_vals)
+df[['fav_han_solo', 'fav_luke_skywalker', 'fav_princess_leia_organa', 'fav_anakin_skywalker', 'fav_obi_wan_kenobi', 'fav_emperor_palpatine', 'fav_darth_vader', 'fav_lando_calrissian', 'fav_boba_fett', 'fav_c3p0', 'fav_r2_d2', 'fav_jar_jar_binks', 'fav_padme_amidala', 'fav_yoda']].head()
+```
+Here I mapped the 'fav_...' columns to numerical values corresponding to how well they rated the character.
+
+```{python}
+# One hot encode who_shot_first, gender, and location_census_region
+df['who_shot_first'] = df['who_shot_first'].str.replace("I don't understand this question", "clueless").str.lower()
+df['gender'] = df['gender'].str.lower()
+df['location_census_region'] = df['location_census_region'].str.lower().str.replace(" ","_")
+df = pd.get_dummies(df, columns=['who_shot_first','gender','location_census_region'], drop_first=False)
+df[['who_shot_first_clueless', 'who_shot_first_greedo', 'who_shot_first_han', 'gender_female', 'gender_male', 'location_census_region_east_north_central', 'location_census_region_east_south_central', 'location_census_region_middle_atlantic', 'location_census_region_mountain', 'location_census_region_new_england', 'location_census_region_pacific', 'location_census_region_south_atlantic', 'location_census_region_west_north_central', 'location_census_region_west_south_central']].head()
+```
+Here I one-hot encoded the 'who_shot_first', 'gender', and 'location_census_region' columns. Those were all the columns left that were categorical (and giving them mappings of numerical values didn't really make sense).
+
+```{python}
+# Separate the X and y features
+X = df.drop(columns=['respondent_id', 'household_income'])
+y = df.household_income
+print(X.head())
+print(y.head())
+```
+Here are the separated X and y dataframes. 
+
 
 ## QUESTION|TASK 3
 
