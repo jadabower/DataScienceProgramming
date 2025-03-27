@@ -38,7 +38,7 @@ LetsPlot.setup_html(isolated_frame=True)
 ## Elevator pitch
 _A SHORT (2-3 SENTENCES) PARAGRAPH THAT `DESCRIBES KEY INSIGHTS` TAKEN FROM METRICS IN THE PROJECT RESULTS THINK TOP OR MOST IMPORTANT RESULTS._ (Note: this is not a summary of the project, but a summary of the results.)
 
-_A Client has requested this analysis and this is your one shot of what you would say to your boss in a 2 min elevator ride before he takes your report and hands it to the client._
+For this project it was a lot of work on cleaning up the data, and there are a lot of ways to do that. A lot of the questions that go along with that are quite subject (including what to do with missing values). So it's not very surprising that the article that used the same data didn't get the exact same numbers from the same data that I did. But the general insights were the same as from the article, and I made a random forest classifier that predicts with 91% recall who of the survey answerers make over $50k a year. 
 
 ## QUESTION|TASK 1
 
@@ -212,8 +212,6 @@ df_ml['y'] = (df_ml.household_income >= 50).astype(int)
 # Separate the X and y features
 X = df_ml.drop(columns=['respondent_id', 'household_income', 'y'])
 y = df_ml.y
-print(X.head())
-print(y.head())
 ```
 Here I created and separated the X and y dataframes. 
 
@@ -331,51 +329,56 @@ result_df['movie'] = pd.Categorical(
 
 __Build a machine learning model that predicts whether a person makes more than $50k. Describe your model and report the accuracy.__ 
 
-_type your results and analysis here_
+I created a Random Forest Classifier that predicts whether or not the person answering the survey makes over $50k a year based off their answers to the other questions. It answers with about a 64% accuracy, which isn't great. But it does have a fairly high recall, of about 91%. So it's really good at finding all of the people above $50k, it's just a little trigger-happy and is guessing that most people make above $50k. My guess as to why this might be is that the dataset was originally pretty unbalanced, and it's not great at balancing itself. 
+But looking at the feature importance, it makes sense that education and age are the biggest identifiers for how much someone makes. 
 
 ```{python}
-# Include and execute your code here
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
 
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+forest = RandomForestClassifier(class_weight='balanced', n_estimators=500, bootstrap=False, random_state=42)
+forest.fit(X_train, y_train)
+forest_pred = forest.predict(X_test)
+
+forest_accuracy = accuracy_score(y_test, forest_pred)
+forest_precision = precision_score(y_test, forest_pred)
+forest_recall = recall_score(y_test, forest_pred)
+forest_f1 = f1_score(y_test, forest_pred)
+
+print('Random Forest')
+print('Accuracy:', forest_accuracy)
+print('Precision:', forest_precision)
+print('Recall:', forest_recall)
+print('F1:', forest_f1)
+print('Confusion Matrix:')
+print(confusion_matrix(y_test, forest_pred))
 ```
 
+
+```{python}
+import matplotlib.pyplot as plt
+from sklearn.metrics import classification_report
+
+influences = (pd.DataFrame({'importance': forest.feature_importances_,
+                           'feature': X_train.columns})
+                           .sort_values('importance')
+                           .query('importance >= 0.02'))
+
+(
+ggplot(data = influences, mapping = aes(x = 'feature', y = 'importance'))
+  + geom_bar(stat = 'identity') 
+  + coord_flip()
+  + labs(
+    x = "Feature",
+    y = "Importance",
+    title = "Random Forest Classifier Feature Importance"
+  )
+  + theme(plot_title=element_text(size=15, hjust=-.3))
+)
+```
 ---
-
-## STRETCH QUESTION|TASK 1
-
-__Build a machine learning model that predicts whether a person makes more than $50k. With accuracy of at least 65%. Describe your model and report the accuracy.__
-
-_type your results and analysis here_
-
-```{python}
-# Include and execute your code here
-
-
-```
-
-
-## STRETCH QUESTION|TASK 2
-
-__Validate the data provided on GitHub lines up with the article by recreating a 3rd visual from the article.__
-
-_type your results and analysis here_
-
-```{python}
-# Include and execute your code here
-
-
-```
-
-
-## STRETCH QUESTION|TASK 3
-
-__Create a new column that converts the location groupings to a single number. Drop the location categorical column.__  
-
-_type your results and analysis here_
-
-```{python}
-# Include and execute your code here
-
-
-```
 
 ---
