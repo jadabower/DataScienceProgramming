@@ -107,10 +107,10 @@ ages = {
 df['age'] = df['age'].map(ages)
 incomes = {
   '$0 - $24,999': 0,
-  '$25,000 - $49,999': 25000,
-  '$50,000 - $99,999': 50000,
-  '$100,000 - $149,999': 100000,
-  '$150,000+': 150000
+  '$25,000 - $49,999': 25,
+  '$50,000 - $99,999': 50,
+  '$100,000 - $149,999': 100,
+  '$150,000+': 150
 }
 df['household_income'] = df['household_income'].map(incomes)
 yrs_of_school = {
@@ -170,10 +170,10 @@ Here I converted all the 'seen_episode_...' type columns to bools.
 ```{python}
 # fav_... columns to ints
 fav_vals = {
-  'Unfamiliar (N/A)': 0,
   'Very unfavorably': 1,
   'Somewhat unfavorably': 2,
   'Neither favorably nor unfavorably (neutral)': 3,
+  'Unfamiliar (N/A)': 3,
   'Somewhat favorably': 4,
   'Very favorably': 5
 }
@@ -200,35 +200,131 @@ Here I mapped the 'fav_...' columns to numerical values corresponding to how wel
 df['who_shot_first'] = df['who_shot_first'].str.replace("I don't understand this question", "clueless").str.lower()
 df['gender'] = df['gender'].str.lower()
 df['location_census_region'] = df['location_census_region'].str.lower().str.replace(" ","_")
-df = pd.get_dummies(df, columns=['who_shot_first','gender','location_census_region'], drop_first=False)
+df = pd.get_dummies(df, columns=['who_shot_first','gender','location_census_region'])
 df[['who_shot_first_clueless', 'who_shot_first_greedo', 'who_shot_first_han', 'gender_female', 'gender_male', 'location_census_region_east_north_central', 'location_census_region_east_south_central', 'location_census_region_middle_atlantic', 'location_census_region_mountain', 'location_census_region_new_england', 'location_census_region_pacific', 'location_census_region_south_atlantic', 'location_census_region_west_north_central', 'location_census_region_west_south_central']].head()
 ```
-Here I one-hot encoded the 'who_shot_first', 'gender', and 'location_census_region' columns. Those were all the columns left that were categorical (and giving them mappings of numerical values didn't really make sense).
+Here I one-hot encoded the 'who_shot_first', 'gender', and 'location_census_region' columns. Those were all the columns left that were categorical (and gave them mappings of numerical values didn't really make sense).
 
 ```{python}
+df_ml = df.dropna(subset='household_income')
+df_ml['y'] = (df_ml.household_income >= 50).astype(int)
+
 # Separate the X and y features
-X = df.drop(columns=['respondent_id', 'household_income'])
-y = df.household_income
+X = df_ml.drop(columns=['respondent_id', 'household_income', 'y'])
+y = df_ml.y
 print(X.head())
 print(y.head())
 ```
-Here are the separated X and y dataframes. 
+Here I created and separated the X and y dataframes. 
 
 
 ## QUESTION|TASK 3
 
 __Validate that the data provided on GitHub lines up with the article by recreating 2 of the visuals from the article.__  
 
-_type your results and analysis here_
+I did not get the exact same results as the graphs from the article had. But I could see how maybe the way I cleaned my data compared to what they might have done could have changed the results slightly. Overall the general ideas are the same, if the numbers aren't exactly the same. 
 
 ```{python}
-# Include and execute your code here
+seen_movies = ['seen_episode_i', 'seen_episode_ii', 'seen_episode_iii', 'seen_episode_iv', 'seen_episode_v', 'seen_episode_vi']
 
+percentage_seen = pd.DataFrame({
+    'movie': seen_movies,
+    'percentage_seen': (df[seen_movies].mean() * 100).round().astype(int)
+})
+movie_titles = {
+  'seen_episode_i': 'The Phantom Menace',
+  'seen_episode_ii': 'Attack of the Clones',
+  'seen_episode_iii': 'Revenge of the Sith',
+  'seen_episode_iv': 'A New Hope',
+  'seen_episode_v': 'The Empire Strikes Back',
+  'seen_episode_vi': 'Return of the Jedi'
+}
+percentage_seen['movie'] = percentage_seen['movie'].map(movie_titles)
+percentage_seen['movie'] = pd.Categorical(
+    percentage_seen['movie'],
+    categories=list(movie_titles.values())[::-1],
+    ordered=True
+  )
+(
+  ggplot(percentage_seen, aes(x="movie", y="percentage_seen"))
+  + geom_bar(stat='identity', color='#f0f0f0')
+  + coord_flip()
+  + labs(
+    title="Which 'Star Wars' Movies Have You Seen?",
+    subtitle="Of 835 respondents who have seen any film",
+    x='',
+    y=''
+  )
+  + geom_text(x=5, y=87, label="81%", family="Consolas")
+  + geom_text(x=4, y=72, label="68", family="Consolas")
+  + geom_text(x=3, y=70, label="66", family="Consolas")
+  + geom_text(x=2, y=77, label="73", family="Consolas")
+  + geom_text(x=1, y=95, label="91", family="Consolas")
+  + geom_text(x=0, y=92, label="88", family="Consolas")
+  + theme(
+    plot_title=element_text(size=20, hjust=-0.55, family="Consolas", face='bold'),
+    plot_subtitle=element_text(hjust=-0.55, family="Consolas"),
+    axis_line=element_blank(),
+    axis_ticks=element_blank(),
+    panel_grid=element_blank(),
+    axis_text_y=element_blank(),
+    axis_text_x=element_text(margin=[0,10], family="Consolas"),
+    plot_background=element_rect(color="black", fill="#f0f0f0", size=0)
+  )
+)
 ```
 
 ```{python}
-# Include and execute your code here
+not_na = df.dropna(subset=['rank_episode_i', 'rank_episode_ii', 'rank_episode_iii', 'rank_episode_iv', 'rank_episode_v', 'rank_episode_vi'], how='any')
+df_ranks = not_na[['rank_episode_i', 'rank_episode_ii', 'rank_episode_iii', 'rank_episode_iv', 'rank_episode_v', 'rank_episode_vi']]
+df_long = df_ranks.melt(var_name='Movie', value_name='Rank')
+rank_1_counts = df_long[df_long['Rank'] == 1]['Movie'].value_counts()
+total_rows = len(df_ranks)  # Total number of respondents (original rows in df)
+rank_1_percentage = ((rank_1_counts / total_rows) * 100).round().astype(int)
+result_df = rank_1_percentage.reset_index()
+result_df.columns = ['movie', 'percentage_ranked_first']
 
+movie_titles = {
+  'rank_episode_i': 'The Phantom Menace',
+  'rank_episode_ii': 'Attack of the Clones',
+  'rank_episode_iii': 'Revenge of the Sith',
+  'rank_episode_iv': 'A New Hope',
+  'rank_episode_v': 'The Empire Strikes Back',
+  'rank_episode_vi': 'Return of the Jedi'
+}
+result_df['movie'] = result_df['movie'].map(movie_titles)
+result_df['movie'] = pd.Categorical(
+    result_df['movie'],
+    categories=list(movie_titles.values())[::-1],
+    ordered=True
+  )
+(
+  ggplot(result_df, aes(x="movie", y="percentage_ranked_first"))
+  + geom_bar(stat='identity', color='#f0f0f0')
+  + coord_flip()
+  + labs(
+    title="What's the best 'Star Wars' Movie?",
+    subtitle="Of 833 respondents who have seen all six films",
+    x='',
+    y=''
+  )
+  + geom_text(x=5, y=17, label="15%", family="Consolas")
+  + geom_text(x=4, y=5, label="4", family="Consolas")
+  + geom_text(x=3, y=5, label="4", family="Consolas")
+  + geom_text(x=2, y=26, label="24", family="Consolas")
+  + geom_text(x=1, y=36, label="34", family="Consolas")
+  + geom_text(x=0, y=20, label="18", family="Consolas")
+  + theme(
+    plot_title=element_text(size=20, hjust=-0.55, family="Consolas", face='bold'),
+    plot_subtitle=element_text(hjust=-0.55, family="Consolas"),
+    axis_line=element_blank(),
+    axis_ticks=element_blank(),
+    panel_grid=element_blank(),
+    axis_text_y=element_blank(),
+    axis_text_x=element_text(margin=[0,10], family="Consolas"),
+    plot_background=element_rect(color="black", fill="#f0f0f0", size=0)
+  )
+)
 ```
 
 ## QUESTION|TASK 4
