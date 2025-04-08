@@ -1,0 +1,165 @@
+---
+title: "Coding Challenge"
+subtitle: "Course DS 250"
+author: "Jada Bower"
+format:
+  html:
+    self-contained: true
+    page-layout: full
+    title-block-banner: true
+    toc: true
+    toc-depth: 3
+    toc-location: body
+    number-sections: false
+    html-math-method: katex
+    code-fold: true
+    code-summary: "Show the code"
+    code-overflow: wrap
+    code-copy: hover
+    code-tools:
+        source: false
+        toggle: true
+        caption: See code
+execute: 
+  warning: false
+    
+---
+
+Question 1
+```{python}
+import pandas as pd
+import numpy as np
+from lets_plot import *
+
+LetsPlot.setup_html(isolated_frame=True)
+df = pd.read_csv("https://raw.githubusercontent.com/byuidatascience/data4names/master/data-raw/names_year/names_year.csv")
+```
+
+```{python}
+# Include and execute your code here
+Elliot_df = df[df["name"] == "John"]
+breaks_range = list(range(1910,2030, 10))
+(
+  ggplot(Elliot_df, aes(x="year"))
+  + geom_line(aes(y='UT'), color='red')
+  + geom_line(aes(y='OR'), color='orange')
+  + geom_vline(xintercept=1936, color='black', size=.5, linetype='solid')
+  + geom_text(label="1936", x=1931, y=400, size=6, color="black")
+  + geom_vline(xintercept=1976, color='black', size=.5, linetype='solid')
+  + geom_text(label="1976", x=1971, y=700, size=6, color="black")
+  + geom_vline(xintercept=1999, color='black', size=.5, linetype='solid')
+  + geom_text(label="1999", x=1994, y=300, size=6, color="black")
+  + labs(
+    title="The history of John for Utah (red) and Oregon (orange)",
+    y="Count of John",
+    x="Year name given"
+  )
+  + theme(
+    plot_title=element_text(size=11, hjust=-0.1, face="bold"),
+    axis_title_x=element_text(size=11, face="bold"),
+    axis_title_y=element_text(size=11, face="bold"),
+    legend_position='none'
+  )
+  + scale_x_continuous(breaks=breaks_range, format='{}', limits=[1910, 2021], expand=[0])
+  + scale_color_manual(values=["#6e78fa"], name="name")
+)
+```
+
+
+Question 2
+```{python}
+problem = pd.DataFrame({"problem": ['N/A', 15, 22, 45, 31, -999, 21, 2, 0, 0, 0, 'broken', 19, 19, 36, 27, 0, np.nan, 0, 33, 42, -999]})
+
+problem = problem.replace('N/A', np.nan)
+problem = problem.replace(-999, np.nan)
+problem = problem.replace('broken', np.nan)
+
+problem.fillna(problem.mean(), inplace=True)
+
+std = problem['problem'].std()
+print(f"Standard Deviation: {std}")
+```
+
+
+Question 3
+```{python}
+flights = pd.read_json("https://github.com/byuidatascience/data4missing/raw/master/data-raw/flights_missing/flights_missing.json")
+flights = flights.replace("1500+", "1500")
+flights['num_of_delays_carrier'] = flights['num_of_delays_carrier'].astype(int)
+flights = flights.replace(['','n/a', -999], np.nan)
+flights = flights.replace('Febuary', 'February')
+flights['month'] = flights['month'].ffill()
+month_dict = {
+    "January":1,
+    "Febuary":2,
+    "March":3,
+    "April":4,
+    "May":5,
+    "June":6,
+    "July":7,
+    "August":8,
+    "September":9,
+    "October":10,
+    "November":11,
+    "December":12
+}
+flights['month'] = flights['month'].map(month_dict)
+flights.month
+
+(
+    ggplot(flights, aes(x="month", y='num_of_flights_total'))
+    + geom_bar()
+)
+```
+
+
+
+Question 4
+```{python}
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
+housing = pd.read_csv("https://raw.githubusercontent.com/byuidatascience/data4dwellings/master/data-raw/dwellings_ml/dwellings_ml.csv")
+
+features = ['livearea','basement','netprice','smonth','finbsmnt','numbdrm','tasp','deduct','abstrprd','nocars','gartype_Att','sprice','quality_C','status_I','quality_D','condition_AVG','arcstyle_ONE-STORY','arcstyle_MIDDLE UNIT','stories','syear','qualified_Q','gartype_Det','arcstyle_ONE AND HALF-STORY','arcstyle_END UNIT','arcstyle_TWO-STORY','condition_Good','quality_B','quality_A','totunits','condition_VGood','arcstyle_TRI-LEVEL','quality_X','gartype_det/CP','arcstyle_BI-LEVEL','arcstyle_THREE-STORY','condition_Excel','arcstyle_TRI-LEVEL WITH BASEMENT','arcstyle_CONVERSIONS','gartype_CP','arcstyle_TWO AND HALF-STORY','gartype_Att/Det','qualified_U','gartype_None','arcstyle_SPLIT LEVEL','condition_Fair','gartype_att/CP','status_V', 'before1980']
+
+X = housing[features]
+threshold = 2
+y = np.where(housing['numbaths'] > threshold, 1, 0)
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=1776)
+
+gbc = GradientBoostingClassifier(random_state=1776)
+gbc.fit(X_train, y_train)
+gbc_pred = gbc.predict(X_test)
+
+gbc_accuracy = accuracy_score(y_test, gbc_pred)
+gbc_precision = precision_score(y_test, gbc_pred)
+gbc_recall = recall_score(y_test, gbc_pred)
+gbc_f1 = f1_score(y_test, gbc_pred)
+
+
+print(gbc_accuracy)
+
+influences = (pd.DataFrame({'importance': gbc.feature_importances_,
+                           'feature': X_train.columns})
+                           .sort_values('importance')
+                           .query('importance >= 0.001')
+                           )
+
+(
+ggplot(data = influences, mapping = aes(x = 'feature', y = 'importance'))
+  + geom_bar(stat = 'identity') 
+  + coord_flip()
+  + labs(
+    x = "Feature",
+    y = "Importance",
+    title = "Decision Tree Classifier Feature Importance"
+  )
+  + theme(plot_title=element_text(size=15,hjust=-1.3))
+)
+```
+
+
+---
